@@ -1,9 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap')
-layer(base);
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
 @import 'tailwindcss';
-
-@config '../tailwind.config.js';
 
 /*
   The default border color has changed to `currentColor` in Tailwind CSS v4,
@@ -21,11 +18,18 @@ layer(base);
   ::file-selector-button {
     border-color: var(--color-gray-200, currentColor);
   }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* prevent scrollbars */
+  }
 }
 
+/* Custom resets */
 html {
-  margin: 0;
-  padding: 0;
   box-sizing: inherit;
 }
 
@@ -40,4 +44,12 @@ button {
 
 a {
   text-decoration: none;
+}
+
+/* Satellite highlight class */
+.satellite-highlight {
+  border: 2px solid red;
+  border-radius: 50%;
+  box-shadow: 0 0 10px red;
+  pointer-events: none;
 }
