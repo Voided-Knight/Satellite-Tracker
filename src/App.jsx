@@ -108,7 +108,13 @@ export default function App() {
             data.tle.split('\n')[1].trim()
           );
 
-          const localInfo = satelliteInfo[sat.noradId] || {};
+          const localInfo = satelliteInfo[sat.noradId] || {
+            name: sat.name,
+            imageUrl: '/Icons/Satellite-icon.png',
+            description: 'No additional info available.',
+            type: sat.type,
+          };
+
           return { ...sat, satrec, ...localInfo };
         } catch (e) {
           console.error(`Failed to fetch TLE for ${sat.name}`, e);
@@ -134,9 +140,14 @@ export default function App() {
               if (isNaN(noradId)) continue;
 
               const satrec = satellite.twoline2satrec(l1, l2);
-              const localInfo = satelliteInfo[noradId] || {};
+              const localInfo = satelliteInfo[noradId] || {
+                name,
+                imageUrl: '/Icons/Satellite-icon.png',
+                description: 'Get info',
+                type: undefined,
+              };
 
-              sats.push({ name, noradId, satrec, ...localInfo });
+              sats.push({ noradId, satrec, ...localInfo });
             } catch {}
           }
           return sats;
@@ -195,15 +206,15 @@ export default function App() {
     const exists = satellitePositions.some((s) => s.noradId === id);
     if (exists) {
       setSearchedId(id);
-      setSelectedSatelliteId(id); // auto-open panel
-      return true; // ✅ tells SearchBar it's valid
+      setSelectedSatelliteId(id);
+      return true;
     }
-    return false; // ❌ invalid
+    return false;
   };
 
   const handleClear = () => {
     setSearchedId(null);
-    setSelectedSatelliteId(null); // ✅ unfocus
+    setSelectedSatelliteId(null);
   };
 
   const handleMarkerClick = (satellite) => {
@@ -253,7 +264,6 @@ export default function App() {
           />
         ))}
 
-        {/* 🔴 Highlight & zoom when searching */}
         <SearchHighlighter searchedSat={searchedSatellite} />
       </MapContainer>
 
