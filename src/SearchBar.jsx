@@ -1,14 +1,12 @@
 // src/SearchBar.jsx
-
 import React, { useState } from 'react';
 
-// Basic styles for the search bar
 const searchBarStyles = {
   position: 'fixed',
   top: '20px',
   left: '50%',
   transform: 'translateX(-50%)',
-  zIndex: 1001, // On top of the map
+  zIndex: 1001,
   backgroundColor: 'rgba(28, 28, 32, 0.9)',
   padding: '8px 15px',
   borderRadius: '8px',
@@ -16,6 +14,7 @@ const searchBarStyles = {
   display: 'flex',
   alignItems: 'center',
   backdropFilter: 'blur(5px)',
+  gap: '10px',
 };
 
 const inputStyles = {
@@ -34,38 +33,59 @@ const buttonStyles = {
   padding: '8px 12px',
   borderRadius: '5px',
   cursor: 'pointer',
-  marginLeft: '10px',
 };
 
-export default function SearchBar({ onSearch }) {
+const clearButtonStyles = {
+  ...buttonStyles,
+  background: '#6c757d',
+};
+
+export default function SearchBar({ onSearch, onClear, highlightedId }) {
   const [inputValue, setInputValue] = useState('');
+  const [error, setError] = useState('');
 
   const handleSearch = () => {
-    // We pass the trimmed, numerical value up to the App component
     const noradId = parseInt(inputValue.trim(), 10);
     if (!isNaN(noradId)) {
-      onSearch(noradId);
+      const success = onSearch(noradId); // now returns true/false
+      if (!success) {
+        setError('❌ Invalid NORAD ID');
+      } else {
+        setError('');
+      }
+    } else {
+      setError('❌ Please enter an ID number');
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
+    if (e.key === 'Enter') handleSearch();
+  };
+
+  const handleClear = () => {
+    setInputValue('');
+    setError('');
+    onClear();
   };
 
   return (
     <div style={searchBarStyles}>
       <input
         type="text"
-        name="norad-id-search" // Add a descriptive name
+        name="norad-id-search"
         style={inputStyles}
-        placeholder="Search by NORAD ID..."
+        placeholder="Search by NORAD ID"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyPress={handleKeyPress}
       />
       <button style={buttonStyles} onClick={handleSearch}>Search</button>
+
+      {highlightedId && (
+        <button style={clearButtonStyles} onClick={handleClear}>Clear</button>
+      )}
+
+      {error && <span style={{ color: 'red', marginLeft: '10px' }}>{error}</span>}
     </div>
   );
 }

@@ -1,20 +1,25 @@
+// src/App.jsx
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import * as satellite from 'satellite.js';
 
-// Import your custom components and data
 import SatelliteInfoPanel from './SatelliteInfoPanel';
 import { satelliteInfo } from './satelliteData';
+import SearchBar from './SearchBar';
 
-// --- All setup, constants, and icons are unchanged ---
+// --- Icons setup ---
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconRetinaUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
 const issIcon = L.icon({
   iconUrl: '/Icons/Iss-icon.png',
   iconSize: [50, 50],
@@ -33,13 +38,24 @@ const defaultSatelliteIcon = L.icon({
   iconAnchor: [17, 17],
   popupAnchor: [0, -17],
 });
-const maxBounds = [[-85, -Infinity], [85, Infinity]];
+const highlightIcon = L.divIcon({
+  className: 'satellite-highlight',
+  html: `<div style="width:50px;height:50px;border:2px solid red;border-radius:8px;"></div>`,
+  iconSize: [50, 50],
+  iconAnchor: [25, 25],
+});
+
+const maxBounds = [
+  [-85, -Infinity],
+  [85, Infinity],
+];
 const SAT_API_KEY = '5G3VVN-7MGCD7-YDMY6A-5J9N';
 
 const FEATURED_SATELLITES = [
   { name: 'International Space Station', noradId: 25544, type: 'iss' },
   { name: 'Hubble Space Telescope', noradId: 20580, type: 'hubble' },
   { name: 'Tiangong Space Station', noradId: 48274 },
+  { name: 'GPS BIIF-12 (USA 265)', noradId: 41334 },
 ];
 
 const getIcon = (sat) => {
@@ -48,43 +64,63 @@ const getIcon = (sat) => {
   return defaultSatelliteIcon;
 };
 
+// 🔹 Pans/zooms when a satellite is searched
+function SearchHighlighter({ searchedSat }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (searchedSat) {
+      map.flyTo([searchedSat.lat, searchedSat.lon], 4, { duration: 1.5 });
+    }
+  }, [searchedSat, map]);
+
+  if (!searchedSat) return null;
+
+  return (
+    <Marker
+      key={`highlight-${searchedSat.noradId}`}
+      position={[searchedSat.lat, searchedSat.lon]}
+      icon={highlightIcon}
+      interactive={false}
+      zIndexOffset={1000}
+    />
+  );
+}
+
 export default function App() {
   const [satellitePositions, setSatellitePositions] = useState([]);
   const [selectedSatelliteId, setSelectedSatelliteId] = useState(null);
+  const [searchedId, setSearchedId] = useState(null);
 
-  // The single, robust useEffect that handles all initialization
+  // --- Fetch TLEs + update positions ---
   useEffect(() => {
     let positionInterval;
     async function initializeTracker() {
-      // --- Fetch TLEs for your FEATURED list from N2YO ---
       const featuredPromises = FEATURED_SATELLITES.map(async (sat) => {
         try {
-          const res = await fetch(`/api/rest/v1/satellite/tle/${sat.noradId}?apiKey=${SAT_API_KEY}`);
+          const res = await fetch(
+            `/api/rest/v1/satellite/tle/${sat.noradId}?apiKey=${SAT_API_KEY}`
+          );
           if (!res.ok) throw new Error(`N2YO API Error ${res.status}`);
           const data = await res.json();
-          const satrec = satellite.twoline2satrec(data.tle.split('\n')[0].trim(), data.tle.split('\n')[1].trim());
-          
-          // --- THIS IS THE FIX for FEATURED SATELLITES ---
-          // Look up the detailed info from your local database
+          const satrec = satellite.twoline2satrec(
+            data.tle.split('\n')[0].trim(),
+            data.tle.split('\n')[1].trim()
+          );
+
           const localInfo = satelliteInfo[sat.noradId] || {};
-          return { 
-            name: sat.name, // Use the name from the featured list
-            noradId: sat.noradId,
-            type: sat.type,
-            satrec: satrec,
-            description: localInfo.description, // Get description from database
-            imageUrl: localInfo.imageUrl,       // Get image from database
-          };
+          return { ...sat, satrec, ...localInfo };
         } catch (e) {
           console.error(`Failed to fetch TLE for ${sat.name}`, e);
           return null;
         }
       });
 
-      // --- Fetch TLEs for the BULK list from Celestrak (Unchanged) ---
       const bulkSatsPromise = async () => {
         try {
-          const res = await fetch('/celestrak/NORAD/elements/gp.php?GROUP=active&FORMAT=tle');
+          const res = await fetch(
+            '/celestrak/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
+          );
           const text = await res.text();
           const sats = [];
           const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -96,74 +132,118 @@ export default function App() {
             try {
               const noradId = parseInt(l2.substring(2, 7), 10);
               if (isNaN(noradId)) continue;
-              
-              // --- THIS IS THE FIX for BULK SATELLITES ---
-              // Also look up details for bulk satellites in the database
-              const localInfo = satelliteInfo[noradId] || {};
+
               const satrec = satellite.twoline2satrec(l1, l2);
-              
-              sats.push({
-                name: localInfo.name || name, // Use local name if it exists
-                noradId, 
-                satrec,
-                type: localInfo.type,
-                description: localInfo.description,
-                imageUrl: localInfo.imageUrl,
-              });
+              const localInfo = satelliteInfo[noradId] || {};
+
+              sats.push({ name, noradId, satrec, ...localInfo });
             } catch {}
           }
           return sats;
-        } catch (e) { return []; }
+        } catch {
+          return [];
+        }
       };
-      
-      const [featuredResults, bulkResult] = await Promise.allSettled([ Promise.all(featuredPromises), bulkSatsPromise() ]);
-      const validFeaturedSats = featuredResults.status === 'fulfilled' ? featuredResults.value.filter(Boolean) : [];
-      const bulkSats = bulkResult.status === 'fulfilled' ? bulkResult.value : [];
-      const featuredNoradIds = new Set(validFeaturedSats.map(s => s.noradId));
-      const uniqueBulkSats = bulkSats.filter(s => !featuredNoradIds.has(s.noradId));
-      const allSatellites = [...validFeaturedSats, ...uniqueBulkSats];
-      
-      console.log(`Now tracking ${allSatellites.length} unique satellites.`);
 
-      // The rest of the logic is unchanged and correct
+      const [featuredResults, bulkResult] = await Promise.allSettled([
+        Promise.all(featuredPromises),
+        bulkSatsPromise(),
+      ]);
+      const featured = featuredResults.status === 'fulfilled'
+        ? featuredResults.value.filter(Boolean)
+        : [];
+      const bulk = bulkResult.status === 'fulfilled' ? bulkResult.value : [];
+
+      const featuredIds = new Set(featured.map((s) => s.noradId));
+      const allSatellites = [...featured, ...bulk.filter((s) => !featuredIds.has(s.noradId))];
+
       const computePositions = () => {
         const now = new Date();
         const gmst = satellite.gstime(now);
-        const positions = allSatellites.map((sat) => {
+        const positions = allSatellites
+          .map((sat) => {
             try {
               const pv = satellite.propagate(sat.satrec, now);
               if (!pv?.position || !pv?.velocity) return null;
               const gd = satellite.eciToGeodetic(pv.position, gmst);
               const velocity = pv.velocity;
-              const speed = Math.sqrt(Math.pow(velocity.x, 2) + Math.pow(velocity.y, 2) + Math.pow(velocity.z, 2));
+              const speed = Math.sqrt(
+                velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2
+              );
               const lat = satellite.degreesLat(gd.latitude);
               const lon = satellite.degreesLong(gd.longitude);
               if (isNaN(lat) || isNaN(lon)) return null;
-              // Pass ALL the data through to the final state
               return { ...sat, lat, lon, speed };
-            } catch (e) { return null; }
-        }).filter(Boolean);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
         setSatellitePositions(positions);
       };
+
       computePositions();
-      const positionInterval = setInterval(computePositions, 2000);
-      return () => { if (positionInterval) clearInterval(positionInterval); };
+      positionInterval = setInterval(computePositions, 2000);
     }
 
     initializeTracker();
+    return () => positionInterval && clearInterval(positionInterval);
   }, []);
 
-  // Click handlers and data lookup are unchanged and correct
-  const handleMarkerClick = (satellite) => { setSelectedSatelliteId(satellite.noradId); };
-  const handleClosePanel = () => { setSelectedSatelliteId(null); };
-  const selectedSatellite = selectedSatelliteId 
-    ? satellitePositions.find(s => s.noradId === selectedSatelliteId) 
+  // --- Handlers ---
+  const handleSearch = (id) => {
+    const exists = satellitePositions.some((s) => s.noradId === id);
+    if (exists) {
+      setSearchedId(id);
+      setSelectedSatelliteId(id); // auto-open panel
+      return true; // ✅ tells SearchBar it's valid
+    }
+    return false; // ❌ invalid
+  };
+
+  const handleClear = () => {
+    setSearchedId(null);
+    setSelectedSatelliteId(null); // ✅ unfocus
+  };
+
+  const handleMarkerClick = (satellite) => {
+    setSelectedSatelliteId(satellite.noradId);
+  };
+  const handleClosePanel = () => {
+    setSelectedSatelliteId(null);
+  };
+
+  const selectedSatellite = selectedSatelliteId
+    ? satellitePositions.find((s) => s.noradId === selectedSatelliteId)
+    : null;
+  const searchedSatellite = searchedId
+    ? satellitePositions.find((s) => s.noradId === searchedId)
     : null;
 
   return (
     <div className="h-screen w-screen">
-      <MapContainer center={[0, 0]} zoom={2} minZoom={2} maxZoom={18} scrollWheelZoom={true} worldCopyJump={true} maxBounds={maxBounds} maxBoundsViscosity={1.0} className="h-full w-screen z-0">
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" attribution='© <a href="https://carto.com/">CARTO</a> | OpenStreetMap contributors' noWrap={false}/>
+      <SearchBar
+        onSearch={handleSearch}
+        onClear={handleClear}
+        highlightedId={searchedId}
+      />
+
+      <MapContainer
+        center={[0, 0]}
+        zoom={2}
+        minZoom={2}
+        maxZoom={18}
+        scrollWheelZoom
+        worldCopyJump
+        maxBounds={maxBounds}
+        maxBoundsViscosity={1.0}
+        className="h-full w-screen z-0"
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+          attribution='© <a href="https://carto.com/">CARTO</a> | OpenStreetMap contributors'
+        />
+
         {satellitePositions.map((s) => (
           <Marker
             key={s.noradId}
@@ -172,11 +252,17 @@ export default function App() {
             eventHandlers={{ click: () => handleMarkerClick(s) }}
           />
         ))}
+
+        {/* 🔴 Highlight & zoom when searching */}
+        <SearchHighlighter searchedSat={searchedSatellite} />
       </MapContainer>
-      <SatelliteInfoPanel 
-        satellite={selectedSatellite} 
-        onClose={handleClosePanel} 
-      />
+
+      {selectedSatellite && (
+        <SatelliteInfoPanel
+          satellite={selectedSatellite}
+          onClose={handleClosePanel}
+        />
+      )}
     </div>
   );
 }

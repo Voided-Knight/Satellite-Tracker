@@ -1,74 +1,71 @@
-// src/SatelliteMarkers.jsx
-import React, { useEffect } from 'react';
-import { Marker, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import React, { useState, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import SatelliteBar from "./SatelliteBar";
+import L from "leaflet";
 
-// --- All of your icon definitions will now live here ---
-const highlightIcon = L.divIcon({
-  className: 'satellite-highlight',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-});
-const issIcon = L.icon({
-  iconUrl: '/Icons/Iss-icon.png',
-  iconSize: [50, 50],
-  iconAnchor: [25, 25],
-  popupAnchor: [0, -25],
-});
-const hubbleIcon = L.icon({
-  iconUrl: '/Icons/hubble-icon.png',
-  iconSize: [50, 50],
-  iconAnchor: [17, 17],
-  popupAnchor: [0, -17],
-});
-const defaultSatelliteIcon = L.icon({
-  iconUrl: '/Icons/Satellite-icon.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 17],
-  popupAnchor: [0, -17],
-});
+const SatelliteMap = ({ satellites }) => {
+  const [highlightedId, setHighlightedId] = useState(null);
+  const mapRef = useRef();
 
-// The main component
-export default function SatelliteMarkers({ positions, onMarkerClick, searchedId, satelliteInfo }) {
-  const map = useMap(); // Get a reference to the parent map instance
-  
-  const getIcon = (sat) => {
-    const localInfo = satelliteInfo[sat.noradId];
-    if (localInfo?.type === 'iss') return issIcon;
-    if (localInfo?.type === 'hubble') return hubbleIcon;
-    return defaultSatelliteIcon;
-  };
-  
-  const searchedPosition = searchedId ? positions.find(s => s.noradId === searchedId) : null;
-
-  // Optional: When a new satellite is searched, pan the map to it
-  useEffect(() => {
-    if (searchedPosition) {
-      map.panTo([searchedPosition.latitude, searchedPosition.longitude]);
+  const handleSearch = (noradId) => {
+    const sat = satellites.find((s) => String(s.noradId) === noradId);
+    if (sat) {
+      setHighlightedId(sat.noradId);
+      if (mapRef.current) {
+        mapRef.current.setView([sat.lat, sat.lng], 4);
+      }
+      return true; // valid
     }
-  }, [searchedPosition, map]);
+    return false; // invalid
+  };
 
+  const handleClear = () => {
+    setHighlightedId(null);
+  };
 
   return (
-    <>
-      {positions.map((s) => (
-        <Marker
-          key={s.noradId}
-          position={[s.latitude, s.longitude]}
-          icon={getIcon(s)}
-          eventHandlers={{ click: () => onMarkerClick(s) }}
-        />
-      ))}
+    <div>
+      <SatelliteBar
+        onSearch={handleSearch}
+        onClear={handleClear}
+        highlightedId={highlightedId}
+      />
 
-      {searchedPosition && (
-        <Marker
-          key={`highlight-${searchedPosition.noradId}`}
-          position={[searchedPosition.latitude, searchedPosition.longitude]}
-          icon={highlightIcon}
-          zIndexOffset={1000}
-          interactive={false}
-        />
-      )}
-    </>
+      <MapContainer
+        center={[0, 0]}
+        zoom={2}
+        style={{ height: "600px", width: "100%" }}
+        whenCreated={(mapInstance) => {
+          mapRef.current = mapInstance;
+        }}
+      >
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+        {satellites.map((sat) => (
+          <Marker
+            key={sat.noradId}
+            position={[sat.lat, sat.lng]}
+            icon={
+              highlightedId === sat.noradId
+                ? new L.DivIcon({
+                    className: "highlighted-sat",
+                    html: `<div style="border: 2px solid red; border-radius: 4px; padding: 2px;">📡</div>`,
+                  })
+                : new L.DivIcon({
+                    className: "sat",
+                    html: `<div>📡</div>`,
+                  })
+            }
+          >
+            <Popup>
+              <b>{sat.name}</b> <br />
+              NORAD: {sat.noradId}
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+    </div>
   );
-}
+};
+
+export default SatelliteMap;

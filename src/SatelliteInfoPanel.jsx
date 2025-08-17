@@ -140,7 +140,7 @@ export default function SatelliteInfoPanel({ satellite, onClose }) {
 
             {satellite.description && (
               <>
-                <h3 style={{ marginTop: '20px', borderBottom: '1px solid #444', paddingBottom: '5px' }}>Mission</h3>
+                <h3 style={{ marginTop: '20px', borderBottom: '1px solid #444', paddingBottom: '5px' }}>Mission and About</h3>
                 <p style={{ fontSize: '14px', lineHeight: '1.6' }}>{satellite.description}</p>
               </>
             )}
