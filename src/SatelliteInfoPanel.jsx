@@ -149,7 +149,7 @@ export default function SatelliteInfoPanel({ satellite, onClose }) {
               {satellite.description || 'No description available.'}{' '}
               {satellite.name && (
                 <a
-                  href={`https://chat.openai.com/?prompt=${encodeURIComponent(`Give me information about the satellite ${satellite.name}, it's Norad ID is ${satellite.noradId}`)}`}
+                  href={`https://chat.openai.com/?prompt=${encodeURIComponent(`Give me detail information about the satellite ${satellite.name}, it's Norad ID is ${satellite.noradId}.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ color: '#1e90ff', textDecoration: 'underline' }}
