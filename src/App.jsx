@@ -49,7 +49,7 @@ const maxBounds = [
   [-85, -Infinity],
   [85, Infinity],
 ];
-const SAT_API_KEY = '5G3VVN-7MGCD7-YDMY6A-5J9N';
+const SAT_API_KEY = import.meta.env.VITE_N2YO_API_KEY;
 
 const FEATURED_SATELLITES = [
   { name: 'International Space Station', noradId: 25544, type: 'iss' },
@@ -251,7 +251,7 @@ export default function App() {
         className="h-full w-screen z-0"
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
           attribution='© <a href="https://carto.com/">CARTO</a> | OpenStreetMap contributors'
         />
 
